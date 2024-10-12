@@ -23,11 +23,20 @@ struct JsonValue {
     JsonValue(const std::string &v) : type(STRING), value(v) {}
     JsonValue(const JsonObject &v) : type(OBJECT), value(v) {}
     JsonValue(const JsonArray &v) : type(ARRAY), value(v) {}
+
+    bool isObject() const { return type == OBJECT; }
+    bool isArray() const { return type == ARRAY; }
+    bool contains(const std::string &key) const { return isObject() && std::get<JsonObject>(value).count(key) > 0; }
+    JsonValue& operator[](const std::string &key) { return std::get<JsonObject>(value)[key]; }
+    JsonValue& operator[](size_t index) { return std::get<JsonArray>(value)[index]; }
+    size_t size() const { return isArray() ? std::get<JsonArray>(value).size() : 0; }
 };
+
 
 class JsonParser {
 public:
     JsonValue parse(const std::string &jsonContent);
+    std::string keyTarget;
 
 private:
     JsonValue parseValue(std::istringstream &ss);
@@ -43,5 +52,6 @@ private:
     JsonValue jsonRoot;
     JsonValue evaluatePath(const std::string &path);
 };
+
 
 void printJsonValue(const JsonValue &value);

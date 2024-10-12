@@ -1,9 +1,8 @@
 #include "parser.h"
 
+
 JsonValue JsonParser::parse(const std::string &jsonContent) {
     // Very basic implementation that can parse simple JSON structure.
-    // For the purpose of this task, let's handle JSON objects like "{ \"a\": { \"b\": 1 } }"
-    // or arrays like "[1, 2, 3]".
     std::istringstream ss(jsonContent);
     return parseValue(ss);
 }
@@ -82,14 +81,47 @@ std::string JsonParser::parseString(std::istringstream &ss) {
 
 JsonEvaluator::JsonEvaluator(const JsonValue &json) : jsonRoot(json) {}
 
-JsonValue JsonEvaluator::evaluate(const std::string &expression) {
-    // Split the expression by the "." or "["
-    return evaluatePath(expression);
+JsonValue JsonEvaluator::evaluatePath(const std::string &path) {
+    if (path.empty()) { // if path is empty, return the current value of jsonRoot
+        return jsonRoot;
+    }
+
+    JsonValue* currentValue = &jsonRoot;
+    std::istringstream pathStream(path);
+    std::string token;
+
+    while (std::getline(pathStream, token, '.')) { // Split by '.' to traverse objects
+        size_t bracketPos = token.find('[');
+        if (bracketPos != std::string::npos) {
+            // Handle array access if brackets are found
+            std::string key = token.substr(0, bracketPos);
+            int index = std::stoi(token.substr(bracketPos + 1, token.find(']') - bracketPos - 1));
+
+            if (!currentValue->isObject() || !currentValue->contains(key)) {
+                throw std::runtime_error("Invalid path: key not found");
+            }
+
+            currentValue = &((*currentValue)[key]);
+            if (!currentValue->isArray() || index >= currentValue->size()) {
+                throw std::runtime_error("Invalid path: array index out of bounds");
+            }
+
+            currentValue = &((*currentValue)[index]);
+        } else {
+            // Handle object access if no brackets are found
+            if (!currentValue->isObject() || !currentValue->contains(token)) {
+                throw std::runtime_error("Invalid path: key not found");
+            }
+            currentValue = &((*currentValue)[token]);
+        }
+    }
+
+    return *currentValue;
 }
 
-JsonValue JsonEvaluator::evaluatePath(const std::string &path) {
-    // TODO: parse the path, navigate the jsonRoot accordingly and extract value
-    return JsonValue(0);
+JsonValue JsonEvaluator::evaluate(const std::string &expression) {
+    // Directly use evaluatePath to evaluate the expression
+    return evaluatePath(expression);
 }
 
 void printJsonValue(const JsonValue &value) {

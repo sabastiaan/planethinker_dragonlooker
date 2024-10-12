@@ -1,4 +1,3 @@
-#pragma once
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -28,6 +27,9 @@ int main(int argc, char **argv) {
     std::stringstream buffer;
     buffer << jsonFile.rdbuf();
     std::string jsonContent = buffer.str();
+    std::cout << "Got file" << std::endl;
+    std::cout << jsonContent << std::endl;
+    std::cout << "expression: " <<  argv[2] << std::endl;
 
     try {
         // Parse JSON
@@ -39,7 +41,9 @@ int main(int argc, char **argv) {
         JsonValue result = evaluator.evaluate(argv[2]);
 
         // Print result
+        std::cout << "result: ";
         printJsonValue(result);
+        std::cout << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
