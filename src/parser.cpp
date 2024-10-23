@@ -1,128 +1,286 @@
 #include "parser.h"
+#include <cassert>
+#include "parser.h"
+#include <cassert>
 
+// Implementation of JsonParser methods
 
 JsonValue JsonParser::parse(const std::string &jsonContent) {
-    // Very basic implementation that can parse simple JSON structure.
     std::istringstream ss(jsonContent);
     return parseValue(ss);
 }
 
 JsonValue JsonParser::parseValue(std::istringstream &ss) {
-    char ch;
-    ss >> ch;
-
-    if (ch == '{') {
-        // Parse object
-        JsonObject obj;
-        std::string key;
-        while (ss >> ch) {
-            if (ch == '"') {
-                key = parseString(ss);
-                ss >> ch; // Expecting ':'
-                if (ch != ':') {
-                    throw std::runtime_error("Expected ':' after key in object");
-                }
-                obj[key] = parseValue(ss);
-                ss >> ch; // Expecting ',' or '}'
-                if (ch == '}') {
-                    break;
-                } else if (ch != ',') {
-                    throw std::runtime_error("Expected ',' or '}' in object");
-                }
-            } else if (ch == '}') {
-                break;
-            }
-        }
-        return JsonValue(obj);
-    } else if (ch == '[') {
-        // Parse array
-        JsonArray arr;
-        while (ss >> ch) {
-            if (ch == ']') {
-                break;
-            } else {
-                ss.putback(ch);
-                arr.push_back(parseValue(ss));
-                ss >> ch; // Expecting ',' or ']'
-                if (ch == ']') {
-                    break;
-                } else if (ch != ',') {
-                    throw std::runtime_error("Expected ',' or ']' in array");
-                }
-            }
-        }
-        return JsonValue(arr);
-    } else if (ch == '"') {
-        // Parse string
+    ss >> std::ws;
+    if (ss.peek() == '"') {
         return JsonValue(parseString(ss));
-    } else if (std::isdigit(ch) || ch == '-') {
-        // Parse number
-        ss.putback(ch);
-        int value;
-        ss >> value;
-        return JsonValue(value);
+    } else if (ss.peek() == '{') {
+        return JsonValue(parseObject(ss));
+    } else if (ss.peek() == '[') {
+        return JsonValue(parseArray(ss));
+    } else if (isdigit(ss.peek()) || ss.peek() == '-') {
+        return JsonValue(parseNumber(ss));
+    } else if (ss.peek() == 't' || ss.peek() == 'f' || ss.peek() == 'n') {
+        std::string literal;
+        ss >> literal;
+        if (literal == "true") {
+            return JsonValue(1); // Represent true as 1
+        } else if (literal == "false") {
+            return JsonValue(0); // Represent false as 0
+        } else if (literal == "null") {
+            return JsonValue(); // Default JsonValue
+        } else {
+            throw std::runtime_error("Invalid literal");
+        }
     } else {
-        throw std::runtime_error("Unexpected character in JSON");
+        throw std::runtime_error("Invalid JSON value");
     }
 }
 
 std::string JsonParser::parseString(std::istringstream &ss) {
     std::string result;
     char ch;
+    ss.get(ch); // Consume the opening quote '"'
     while (ss.get(ch)) {
+        result += ch;
         if (ch == '"') {
-            break;
-        } else {
-            result += ch;
+            // Check if the quote is escaped
+            size_t backslash_count = 0;
+            for (int i = result.length() - 2; i >= 0 && result[i] == '\\'; --i) {
+                backslash_count++;
+            }
+            if (backslash_count % 2 == 0) {
+                // Even number of backslashes before the quote
+                result.pop_back(); // Remove the ending quote
+                return result;
+            }
+            // Else, the quote is escaped; continue parsing
         }
     }
-    return result;
+    throw std::runtime_error("Unterminated string");
 }
 
-JsonEvaluator::JsonEvaluator(const JsonValue &json) : jsonRoot(json) {}
-
-JsonValue JsonEvaluator::evaluatePath(const std::string &path) {
-    if (path.empty()) { // if path is empty, return the current value of jsonRoot
-        return jsonRoot;
+int JsonParser::parseNumber(std::istringstream &ss) {
+    std::string numberStr;
+    char ch;
+    while (ss.peek() != EOF && (isdigit(ss.peek()) || ss.peek() == '-' || ss.peek() == '+')) {
+        ss.get(ch);
+        numberStr += ch;
     }
+    return std::stoi(numberStr);
+}
 
-    JsonValue* currentValue = &jsonRoot;
-    std::istringstream pathStream(path);
-    std::string token;
-
-    while (std::getline(pathStream, token, '.')) { // Split by '.' to traverse objects
-        size_t bracketPos = token.find('[');
-        if (bracketPos != std::string::npos) {
-            // Handle array access if brackets are found
-            std::string key = token.substr(0, bracketPos);
-            int index = std::stoi(token.substr(bracketPos + 1, token.find(']') - bracketPos - 1));
-
-            if (!currentValue->isObject() || !currentValue->contains(key)) {
-                throw std::runtime_error("Invalid path: key not found");
-            }
-
-            currentValue = &((*currentValue)[key]);
-            if (!currentValue->isArray() || index >= currentValue->size()) {
-                throw std::runtime_error("Invalid path: array index out of bounds");
-            }
-
-            currentValue = &((*currentValue)[index]);
+JsonObject JsonParser::parseObject(std::istringstream &ss) {
+    JsonObject object;
+    char ch;
+    ss.get(ch); // Consume '{'
+    ss >> std::ws;
+    if (ss.peek() == '}') {
+        ss.get(ch); // Consume '}'
+        return object; // Empty object
+    }
+    while (true) {
+        ss >> std::ws;
+        if (ss.peek() != '"') {
+            throw std::runtime_error("Expected string key");
+        }
+        std::string key = parseString(ss);
+        ss >> std::ws;
+        if (ss.get(ch) && ch != ':') {
+            throw std::runtime_error("Expected ':' after key");
+        }
+        ss >> std::ws;
+        JsonValue value = parseValue(ss);
+        object[key] = value;
+        ss >> std::ws;
+        if (ss.peek() == ',') {
+            ss.get(ch); // Consume ','
+            continue;
+        } else if (ss.peek() == '}') {
+            ss.get(ch); // Consume '}'
+            break;
         } else {
-            // Handle object access if no brackets are found
-            if (!currentValue->isObject() || !currentValue->contains(token)) {
-                throw std::runtime_error("Invalid path: key not found");
-            }
-            currentValue = &((*currentValue)[token]);
+            throw std::runtime_error("Expected ',' or '}' in object");
         }
     }
+    return object;
+}
 
+JsonArray JsonParser::parseArray(std::istringstream &ss) {
+    JsonArray array;
+    char ch;
+    ss.get(ch); // Consume '['
+    ss >> std::ws;
+    if (ss.peek() == ']') {
+        ss.get(ch); // Consume ']'
+        return array; // Empty array
+    }
+    while (true) {
+        ss >> std::ws;
+        JsonValue value = parseValue(ss);
+        array.push_back(value);
+        ss >> std::ws;
+        if (ss.peek() == ',') {
+            ss.get(ch); // Consume ','
+            continue;
+        } else if (ss.peek() == ']') {
+            ss.get(ch); // Consume ']'
+            break;
+        } else {
+            throw std::runtime_error("Expected ',' or ']' in array");
+        }
+    }
+    return array;
+}
+
+// Implementation of JsonPathEvalator methods
+
+JsonPathEvalator::JsonPathEvalator(const JsonValue &json)
+    : jsonRoot(json)
+{
+}
+
+JsonValue JsonPathEvalator::evaluate(const std::string &expression) {
+    return evaluate(expression, jsonRoot);
+}
+
+JsonValue JsonPathEvalator::evaluate(const std::string &expression, const JsonValue& context) {
+    std::size_t pos = 0;
+    std::vector<Path> paths = parse_expression_at(expression, pos);
+    const JsonValue* currentValue = &context;
+
+    for (const auto& path : paths) {
+        if (path.is_object()) {
+            if (currentValue->isObject() && currentValue->contains(path.name)) {
+                currentValue = &((*currentValue)[path.name]);
+            } else {
+                throw std::runtime_error("Invalid object path: " + path.name);
+            }
+        } else if (path.is_array()) {
+            if (currentValue->isArray() && path.array_index < currentValue->size()) {
+                currentValue = &((*currentValue)[path.array_index]);
+            } else {
+                throw std::runtime_error("Invalid array index: " + std::to_string(path.array_index));
+            }
+        } else {
+            throw std::runtime_error("Invalid path type");
+        }
+    }
     return *currentValue;
 }
 
-JsonValue JsonEvaluator::evaluate(const std::string &expression) {
-    // Directly use evaluatePath to evaluate the expression
-    return evaluatePath(expression);
+std::vector<Path> JsonPathEvalator::parse_expression_at(const std::string &expression, std::size_t &pos) {
+    std::vector<Path> paths;
+    while (pos < expression.length()) {
+        if (std::isalpha(expression[pos]) || expression[pos] == '_') {
+            // Parse object key
+            std::size_t start = pos;
+            while (pos < expression.length() && (std::isalnum(expression[pos]) || expression[pos] == '_')) {
+                ++pos;
+            }
+            std::string key = expression.substr(start, pos - start);
+            paths.emplace_back(Path::Object, key);
+        } else if (expression[pos] == '[') {
+            ++pos; // Consume '['
+            // Parse the content inside brackets
+            JsonValue indexValue = parse_bracket_expression(expression, pos);
+            if (expression[pos] != ']') {
+                throw std::runtime_error("Expected ']' in expression");
+            }
+            ++pos; // Consume ']'
+            if (indexValue.type == JsonValue::INT) {
+                paths.emplace_back(Path::Array, "", std::get<int>(indexValue.value));
+            } else if (indexValue.type == JsonValue::STRING) {
+                paths.emplace_back(Path::Object, std::get<std::string>(indexValue.value));
+            } else {
+                throw std::runtime_error("Invalid index type in array access");
+            }
+        } else if (expression[pos] == '.') {
+            ++pos; // Consume '.'
+        } else {
+            throw std::runtime_error("Invalid character in expression: " + std::string(1, expression[pos]));
+        }
+    }
+    return paths;
 }
+
+JsonValue JsonPathEvalator::parse_bracket_expression(const std::string &expression, std::size_t &pos) {
+    if (expression[pos] == '"') {
+        // Parse string
+        std::string strValue = parseStringInExpression(expression, pos);
+        return JsonValue(strValue);
+    } else if (std::isdigit(expression[pos]) || expression[pos] == '-') {
+        // Parse number
+        std::size_t start = pos;
+        while (pos < expression.length() && (std::isdigit(expression[pos]) || expression[pos] == '-')) {
+            ++pos;
+        }
+        int intValue = std::stoi(expression.substr(start, pos - start));
+        return JsonValue(intValue);
+    } else {
+        // Parse nested expression
+        std::size_t start = pos;
+        int brackets = 1;
+        while (pos < expression.length() && brackets > 0) {
+            if (expression[pos] == '[') {
+                brackets++;
+            } else if (expression[pos] == ']') {
+                brackets--;
+                if (brackets == 0) {
+                    break; // Stop at the matching closing bracket
+                }
+            }
+            pos++;
+        }
+        if (brackets != 0) {
+            throw std::runtime_error("Mismatched brackets in expression");
+        }
+        std::string nestedExpression = expression.substr(start, pos - start);
+        // Evaluate nested expression with root context
+        JsonValue indexValue = evaluate(nestedExpression, jsonRoot);
+        return indexValue;
+    }
+}
+
+std::string JsonPathEvalator::parseStringInExpression(const std::string &expression, std::size_t &pos) {
+    std::string result;
+    char ch = expression[pos++];
+    if (ch != '"') {
+        throw std::runtime_error("Expected '\"' at the start of string");
+    }
+    while (pos < expression.length()) {
+        ch = expression[pos++];
+        result += ch;
+        if (ch == '"') {
+            // Check if the quote is escaped
+            size_t backslash_count = 0;
+            for (int i = result.length() - 2; i >= 0 && result[i] == '\\'; --i) {
+                backslash_count++;
+            }
+            if (backslash_count % 2 == 0) {
+                // Even number of backslashes before the quote
+                result.pop_back(); // Remove the ending quote
+                return result;
+            }
+            // Else, the quote is escaped; continue parsing
+        }
+    }
+    throw std::runtime_error("Unterminated string in expression");
+}
+
+// Implementation of JsonStorage methods
+
+JsonStorage::JsonStorage(const std::string &jsonFileContent) {
+    JsonParser parser;
+    json_content = parser.parse(jsonFileContent);
+}
+
+JsonValue JsonStorage::get(const std::string& path) {
+    JsonPathEvalator evaluator(json_content);
+    return evaluator.evaluate(path);
+}
+
+// Function to print JsonValue
 
 void printJsonValue(const JsonValue &value) {
     switch (value.type) {
@@ -130,32 +288,36 @@ void printJsonValue(const JsonValue &value) {
             std::cout << std::get<int>(value.value);
             break;
         case JsonValue::STRING:
-            std::cout << std::get<std::string>(value.value);
+            std::cout << '"' << std::get<std::string>(value.value) << '"';
             break;
         case JsonValue::OBJECT: {
+            std::cout << "{";
             const JsonObject &obj = std::get<JsonObject>(value.value);
-            std::cout << "{ ";
-            for (auto it = obj.begin(); it != obj.end(); ++it) {
-                std::cout << '"' << it->first << "\": ";
-                printJsonValue(it->second);
-                if (std::next(it) != obj.end()) {
+            bool first = true;
+            for (const auto& [key, val] : obj) {
+                if (!first) {
                     std::cout << ", ";
                 }
+                std::cout << '"' << key << "\": ";
+                printJsonValue(val);
+                first = false;
             }
-            std::cout << " }";
+            std::cout << "}";
             break;
         }
         case JsonValue::ARRAY: {
+            std::cout << "[";
             const JsonArray &arr = std::get<JsonArray>(value.value);
-            std::cout << "[ ";
-            for (size_t i = 0; i < arr.size(); ++i) {
-                printJsonValue(arr[i]);
-                if (i != arr.size() - 1) {
+            for (std::size_t i = 0; i < arr.size(); ++i) {
+                if (i > 0) {
                     std::cout << ", ";
                 }
+                printJsonValue(arr[i]);
             }
-            std::cout << " ]";
+            std::cout << "]";
             break;
         }
+        default:
+            break;
     }
 }

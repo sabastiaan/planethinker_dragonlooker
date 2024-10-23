@@ -10,6 +10,7 @@
 #include <cctype>
 
 #include "parser.h"
+#include "expression.h"
 
 int main(int argc, char **argv) {
     if (argc < 3) {
@@ -33,16 +34,19 @@ int main(int argc, char **argv) {
 
     try {
         // Parse JSON
-        JsonParser parser;
-        JsonValue json = parser.parse(jsonContent);
-
+        // JsonParser parser;
+        // JsonValue json = parser.parse(jsonContent);
+// 
         // Evaluate expression
-        JsonEvaluator evaluator(json);
-        JsonValue result = evaluator.evaluate(argv[2]);
+        // JsonPathEvalator evaluator(json);
+        // JsonValue result = evaluator.evaluate(argv[2]);
 
+        JsonStorage js(jsonContent);
+        ExpressionEvaluator ee(js);
         // Print result
         std::cout << "result: ";
-        printJsonValue(result);
+        JsonValue val = ee.evaluate(argv[2]);
+        printJsonValue(val);
         std::cout << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "parser.h"
+#include "expression.h"
 
 TEST(JsonParserTest, ParseInt) {
     JsonParser parser;
@@ -38,12 +39,42 @@ TEST(JsonParserTest, ParseArray) {
 TEST(JsonEvaluatorTest, EvaluateSimplePath) {
     JsonParser parser;
     JsonValue value = parser.parse("{\"a\": {\"b\": 1}}");
-    JsonEvaluator evaluator(value);
+    JsonPathEvalator evaluator(value);
     JsonValue result = evaluator.evaluate("a.b");
     ASSERT_EQ(result.type, JsonValue::INT);
     ASSERT_EQ(std::get<int>(result.value), 1);
 }
+TEST(JsonEvaluatorTest, NestedPath) {
+    JsonStorage storage("{\"a\": { \"b\": [ 1, 2, { \"c\": \"test\" }, [11, 12] ]}}");
+    JsonValue result = storage.get("a.b[a.b[1]]");
+    ASSERT_EQ(result.type, JsonValue::INT);
+    ASSERT_EQ(std::get<int>(result.value), 1);
+}
 
+TEST(ExpressionEvaluatorTest, EvaluateSize1) {
+    JsonStorage storage("{\"a\": { \"b\": [ 1, 2, { \"c\": \"test\" }, [11, 12] ]}}");
+    ExpressionEvaluator evaluator(storage);
+    JsonValue result = evaluator.evaluate("size(a)");
+    std::cout << "got result: ";
+    printJsonValue(result);
+    ASSERT_EQ(result.type, JsonValue::INT);
+    ASSERT_EQ(std::get<int>(result.value), 1);
+
+    result = evaluator.evaluate("size(a.b)");
+    ASSERT_EQ(result.type, JsonValue::INT);
+    ASSERT_EQ(std::get<int>(result.value), 4);
+
+}
+
+// TEST(ExpressionEvaluatorTest, EvaluateSize2) {
+//     JsonStorage storage("{\"a\": { \"b\": [ 1, 2, { \"c\": \"test\" }, [11, 12] ]}}");
+//     ExpressionEvaluator evaluator(storage);
+
+//     JsonValue result = evaluator.evaluate("size(a.b)");
+//     ASSERT_EQ(result.type, JsonValue::INT);
+//     ASSERT_EQ(std::get<int>(result.value), 4);
+
+// }
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
