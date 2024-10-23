@@ -3,6 +3,9 @@
 #include "parser.h"
 #include <cassert>
 
+#include <limits>
+
+#include <climits>
 // Implementation of JsonParser methods
 
 JsonValue JsonParser::parse(const std::string &jsonContent) {
@@ -12,29 +15,50 @@ JsonValue JsonParser::parse(const std::string &jsonContent) {
 
 JsonValue JsonParser::parseValue(std::istringstream &ss) {
     ss >> std::ws;
-    if (ss.peek() == '"') {
-        return JsonValue(parseString(ss));
-    } else if (ss.peek() == '{') {
-        return JsonValue(parseObject(ss));
-    } else if (ss.peek() == '[') {
-        return JsonValue(parseArray(ss));
-    } else if (isdigit(ss.peek()) || ss.peek() == '-') {
-        return JsonValue(parseNumber(ss));
-    } else if (ss.peek() == 't' || ss.peek() == 'f' || ss.peek() == 'n') {
+    
+    // Peek the next character and use bitwise operations to decide the type.
+    char nextChar = ss.peek();
+
+    // Lookup table for value type based on the first character
+    const char objectChar = '{';
+    const char arrayChar = '[';
+    const char stringChar = '"';
+    const char minusChar = '-';
+    
+    // Branchless type identification based on ASCII values
+    int isObject = (nextChar == objectChar);
+    int isArray = (nextChar == arrayChar);
+    int isString = (nextChar == stringChar);
+    int isNumberStart = isdigit(nextChar) | (nextChar == minusChar); // Checks for digit or '-'
+    
+    // Parse based on type
+    JsonValue result;
+
+    // Speculative execution without branching (in practice, a compiler may still branch here)
+    result = isObject ? JsonValue(parseObject(ss)) : result;
+    result = isArray ? JsonValue(parseArray(ss)) : result;
+    result = isString ? JsonValue(parseString(ss)) : result;
+    result = isNumberStart ? JsonValue(parseNumber(ss)) : result;
+
+    if (!(isObject | isArray | isString | isNumberStart)) {
+        // Handle literals: true, false, null (not easily branchless due to complexity)
         std::string literal;
-        ss >> literal;
-        if (literal == "true") {
-            return JsonValue(1); // Represent true as 1
-        } else if (literal == "false") {
-            return JsonValue(0); // Represent false as 0
-        } else if (literal == "null") {
-            return JsonValue(); // Default JsonValue
-        } else {
-            throw std::runtime_error("Invalid literal");
+        while (std::isalpha(ss.peek())) {
+            literal += ss.get();
         }
-    } else {
-        throw std::runtime_error("Invalid JSON value");
+
+        // Skip whitespace (this could be optimized further with bitwise tricks)
+        while (std::isspace(ss.peek())) {
+            ss.get();
+        }
+
+        result = literal == "true" ? JsonValue(1) :
+                 literal == "false" ? JsonValue(0) :
+                 literal == "null" ? JsonValue() :
+                 throw std::runtime_error("Invalid literal: " + literal);
     }
+
+    return result;
 }
 
 std::string JsonParser::parseString(std::istringstream &ss) {
@@ -87,6 +111,30 @@ std::string JsonParser::parseString(std::istringstream &ss) {
     throw std::runtime_error("Unterminated string");
 }
 
+int safe_stoi(const std::string& str) {
+    try {
+        // Use std::stoll to convert string to long long
+        long long value = std::stoll(str);
+
+        // Check if the value is within the range of int
+        if (value > INT_MAX) {
+            return INT_MAX;
+        } else if (value < INT_MIN) {
+            return INT_MIN;
+        } else {
+            return static_cast<int>(value);
+        }
+    } catch (const std::invalid_argument&) {
+        // The string does not contain a valid number
+        // Return 0 or any default value you'd prefer
+        return 0;
+    } catch (const std::out_of_range&) {
+        // The value is out of range for long long
+        // Since we cannot determine the sign, we can assume it's large positive
+        return INT_MAX;
+    }
+}
+
 int JsonParser::parseNumber(std::istringstream &ss) {
     std::string numberStr;
     char ch;
@@ -94,7 +142,8 @@ int JsonParser::parseNumber(std::istringstream &ss) {
         ss.get(ch);
         numberStr += ch;
     }
-    return std::stoi(numberStr);
+    
+    return safe_stoi(numberStr);
 }
 
 JsonObject JsonParser::parseObject(std::istringstream &ss) {

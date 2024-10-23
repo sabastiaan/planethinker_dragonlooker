@@ -28,11 +28,11 @@ int main(int argc, char **argv) {
     std::stringstream buffer;
     buffer << jsonFile.rdbuf();
     std::string jsonContent = buffer.str();
-    std::cout << "Got file" << std::endl;
-    std::cout << jsonContent << std::endl;
-    std::cout << "expression: " <<  argv[2] << std::endl;
+    // std::cout << "Got file" << std::endl;
+    // std::cout << jsonContent << std::endl;
+    // std::cout << "expression: " <<  argv[2] << std::endl;
 
-    try {
+    // try {
         // Parse JSON
         // JsonParser parser;
         // JsonValue json = parser.parse(jsonContent);
@@ -48,10 +48,12 @@ int main(int argc, char **argv) {
         JsonValue val = ee.evaluate(argv[2]);
         printJsonValue(val);
         std::cout << std::endl;
-    } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
+    // } 
+    
+    // catch (const std::exception &e) {
+    //     std::cerr << "Error: " << e.what() << std::endl;
+    //     return 1;
+    // }
 
     return 0;
 }
