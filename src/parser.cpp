@@ -40,21 +40,48 @@ JsonValue JsonParser::parseValue(std::istringstream &ss) {
 std::string JsonParser::parseString(std::istringstream &ss) {
     std::string result;
     char ch;
-    ss.get(ch); // Consume the opening quote '"'
+    if (!ss.get(ch) || ch != '"') {
+        throw std::runtime_error("Expected '\"' at the start of string");
+    }
     while (ss.get(ch)) {
-        result += ch;
-        if (ch == '"') {
-            // Check if the quote is escaped
-            size_t backslash_count = 0;
-            for (int i = result.length() - 2; i >= 0 && result[i] == '\\'; --i) {
-                backslash_count++;
+        if (ch == '\\') {
+            // Handle escape sequences
+            if (!ss.get(ch)) {
+                throw std::runtime_error("Unterminated escape sequence");
             }
-            if (backslash_count % 2 == 0) {
-                // Even number of backslashes before the quote
-                result.pop_back(); // Remove the ending quote
-                return result;
+            switch (ch) {
+                case '"': result += '"'; break;
+                case '\\': result += '\\'; break;
+                case '/': result += '/'; break;
+                case 'b': result += '\b'; break;
+                case 'f': result += '\f'; break;
+                case 'n': result += '\n'; break;
+                case 'r': result += '\r'; break;
+                case 't': result += '\t'; break;
+                case 'u': {
+                    // Parse 4 hex digits
+                    std::string hex;
+                    for (int i = 0; i < 4; ++i) {
+                        if (!ss.get(ch) || !isxdigit(ch)) {
+                            throw std::runtime_error("Invalid unicode escape sequence");
+                        }
+                        hex += ch;
+                    }
+                    unsigned int codePoint;
+                    std::stringstream hexStream(hex);
+                    hexStream >> std::hex >> codePoint;
+                    // For simplicity, assume codePoint is in ASCII range
+                    result += static_cast<char>(codePoint);
+                    break;
+                }
+                default:
+                    throw std::runtime_error(std::string("Invalid escape sequence: \\") + ch);
             }
-            // Else, the quote is escaped; continue parsing
+        } else if (ch == '"') {
+            // End of string
+            return result;
+        } else {
+            result += ch;
         }
     }
     throw std::runtime_error("Unterminated string");
@@ -244,25 +271,52 @@ JsonValue JsonPathEvalator::parse_bracket_expression(const std::string &expressi
 
 std::string JsonPathEvalator::parseStringInExpression(const std::string &expression, std::size_t &pos) {
     std::string result;
-    char ch = expression[pos++];
-    if (ch != '"') {
+    if (expression[pos] != '"') {
         throw std::runtime_error("Expected '\"' at the start of string");
     }
+    pos++; // Consume the opening quote
     while (pos < expression.length()) {
-        ch = expression[pos++];
-        result += ch;
-        if (ch == '"') {
-            // Check if the quote is escaped
-            size_t backslash_count = 0;
-            for (int i = result.length() - 2; i >= 0 && result[i] == '\\'; --i) {
-                backslash_count++;
+        char ch = expression[pos++];
+        if (ch == '\\') {
+            if (pos >= expression.length()) {
+                throw std::runtime_error("Unterminated escape sequence in expression");
             }
-            if (backslash_count % 2 == 0) {
-                // Even number of backslashes before the quote
-                result.pop_back(); // Remove the ending quote
-                return result;
+            ch = expression[pos++];
+            switch (ch) {
+                case '"': result += '"'; break;
+                case '\\': result += '\\'; break;
+                case '/': result += '/'; break;
+                case 'b': result += '\b'; break;
+                case 'f': result += '\f'; break;
+                case 'n': result += '\n'; break;
+                case 'r': result += '\r'; break;
+                case 't': result += '\t'; break;
+                case 'u': {
+                    if (pos + 4 > expression.length()) {
+                        throw std::runtime_error("Incomplete unicode escape sequence");
+                    }
+                    std::string hex = expression.substr(pos, 4);
+                    for (char c : hex) {
+                        if (!isxdigit(c)) {
+                            throw std::runtime_error("Invalid character in unicode escape sequence");
+                        }
+                    }
+                    unsigned int codePoint;
+                    std::stringstream hexStream(hex);
+                    hexStream >> std::hex >> codePoint;
+                    pos += 4;
+                    // Simplified handling: assumes codePoint is in ASCII range
+                    result += static_cast<char>(codePoint);
+                    break;
+                }
+                default:
+                    throw std::runtime_error(std::string("Invalid escape sequence in expression: \\") + ch);
             }
-            // Else, the quote is escaped; continue parsing
+        } else if (ch == '"') {
+            // End of string
+            return result;
+        } else {
+            result += ch;
         }
     }
     throw std::runtime_error("Unterminated string in expression");
