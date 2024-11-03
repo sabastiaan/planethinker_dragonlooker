@@ -9,10 +9,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_BUILD_TYPE Debug)
-# set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Release)
 # Force static linking for the entire project
 # Ensure that the compiler includes debug symbols and disables optimizations in Debug mode
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+# set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 # set(CMAKE_EXE_LINKER_FLAGS "-static")
 # Add the main executable
 add_executable(json_eval src/main.cpp src/parser.cpp src/expression.cpp)

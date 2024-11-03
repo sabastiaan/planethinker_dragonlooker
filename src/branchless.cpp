@@ -1,3 +1,4 @@
+
 #include "parser.h"
 #include <cassert>
 #include "parser.h"
@@ -35,19 +36,10 @@ JsonValue JsonParser::parseValue(std::istringstream &ss) {
     JsonValue result;
 
     // Speculative execution without branching (in practice, a compiler may still branch here)
-    if(isObject)
-        result = parseObject(ss);
-    else if (isArray) {result = parseArray(ss);} 
-    else if (isString) {result = parseString(ss);} 
-    else if (isalnum) {result = parseNumber(ss);} 
-    // result = isObject ? JsonValue(parseObject(ss)) : result;
-    // result = isArray ? JsonValue(parseArray(ss)) : result;
-    // result = isString ? JsonValue(parseString(ss)) : result;
-    // result = isNumberStart ? JsonValue(parseNumber(ss)) : result;
-    result = isObject ? (parseObject(ss)) : result;
-    result = isArray ? (parseArray(ss)) : result;
-    result = isString ? (parseString(ss)) : result;
-    result = isNumberStart ? (parseNumber(ss)) : result;
+    result = isObject ? JsonValue(parseObject(ss)) : result;
+    result = isArray ? JsonValue(parseArray(ss)) : result;
+    result = isString ? JsonValue(parseString(ss)) : result;
+    result = isNumberStart ? JsonValue(parseNumber(ss)) : result;
 
     if (!(isObject | isArray | isString | isNumberStart)) {
         // Handle literals: true, false, null (not easily branchless due to complexity)
@@ -83,16 +75,16 @@ std::string JsonParser::parseString(std::istringstream &ss) {
         // Handle escape sequences branchlessly using lookup table
         if (isEscape) {
             ss.get(ch); // Consume the next character after '\\'
-            static char map[256] = { 0 }; // Initialize all elements to 0
-            map['"'] = '"';
-            map['\\'] = '\\';
-            map['/'] = '/';
-            map['b'] = '\b';
-            map['f'] = '\f';
-            map['n'] = '\n';
-            map['r'] = '\r';
-            map['t'] = '\t';
+            static char escapeMap[256] = {0}; // Initialize all to 0 (or '\0')
 
+            escapeMap['"'] = '"';
+            escapeMap['\\'] = '\\';
+            escapeMap['/'] = '/';
+            escapeMap['b'] = '\b';
+            escapeMap['f'] = '\f';
+            escapeMap['n'] = '\n';
+            escapeMap['r'] = '\r';
+            escapeMap['t'] = '\t';
 
             // Get the mapped value (if valid), otherwise handle error (some branching is inevitable here)
             result += escapeMap[static_cast<unsigned char>(ch)];
@@ -196,7 +188,6 @@ JsonObject JsonParser::parseObject(std::istringstream &ss) {
     
     return object;
 }
-
 
 JsonArray JsonParser::parseArray(std::istringstream &ss) {
     JsonArray array;
