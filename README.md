@@ -1,19 +1,32 @@
 # planethinker_dragonlooker
-
-
 This a internship test for a company renowened for its IDEs.
 
-Requirements are to create a path evaluator with possible operations on them:
+# BUILD INSTRUCTIONS
 
-Prioritzations:
-Speed
-Full utf support
+```
+mkdir build
+cmake ..
+make 
+```
+
+
+For tests
+```
+make test
+```
+
+
+
+# Design
+
+Requirements are to create a path evaluator with possible operations on them
+
+
 
 Design:
 We have two big components:
 Expression parsing/evaluator 
 Json parser
-Path evuator
 
 ## Expression parsing
 In the context of the project, its fair to assume these expressions are relatively small,
@@ -25,28 +38,17 @@ However, a lot of required functionality is in here, more compiler design aspect
 Probably biggest chunk of time will be spent in here, 
 Writing parsers are hard, big space between speed, complexity and portability (SIMD).
 C++ 20 does not have complete support for SIMD, only experimental
-SIMD is cool, but also takes too much time
+SIMD is cool, but also takes too much time so it was out of scope for now.
 
 
 
-Overal design:
-SIMD parsing is cool, but to deal with UTF and nested \ is a hard.
-Therefore we opt for a two pass model:
-The first phase is dispatching, we go over the json structure and dispatch on top level items (or lower),
-then for each we spawn a parsing thread.
+The current implementation is a simple LL parser. This was mostly thanks to time constraints.
+Ideally I would implement a two pass model, with the first pass looking for the structure of the json document, then parsing the actual content multi-threaded.
+The parsing of the structure could be extended to SIMD if benchmarks would discover that the limtiing factor would remain parsing.
 
-This is nice since we have a nice set of upgrade paths:
-For spawning a thread on the top level -> simplest case
-Can extend to SIMD later on for the structure 
 
 
 
 
 ## Project planning
-Most important task is to get somethign that forfills all requirements
-Second is to make it fasest.
-
-Structure of the project:
-    1. Get basic complete implementaiton
-    2. Create a couple of simple benchmarks for performance
-    3. Multi-threading 
+Sadly this project happened during a really busy time for me so I prioritzed having a good tested but slow project first before focusing on pure speed.
