@@ -40,14 +40,6 @@ JsonValue JsonParser::parseValue(std::istringstream &ss) {
     else if (isArray) {result = parseArray(ss);} 
     else if (isString) {result = parseString(ss);} 
     else if (isalnum) {result = parseNumber(ss);} 
-    // result = isObject ? JsonValue(parseObject(ss)) : result;
-    // result = isArray ? JsonValue(parseArray(ss)) : result;
-    // result = isString ? JsonValue(parseString(ss)) : result;
-    // result = isNumberStart ? JsonValue(parseNumber(ss)) : result;
-    result = isObject ? (parseObject(ss)) : result;
-    result = isArray ? (parseArray(ss)) : result;
-    result = isString ? (parseString(ss)) : result;
-    result = isNumberStart ? (parseNumber(ss)) : result;
 
     if (!(isObject | isArray | isString | isNumberStart)) {
         // Handle literals: true, false, null (not easily branchless due to complexity)
@@ -95,7 +87,7 @@ std::string JsonParser::parseString(std::istringstream &ss) {
 
 
             // Get the mapped value (if valid), otherwise handle error (some branching is inevitable here)
-            result += escapeMap[static_cast<unsigned char>(ch)];
+            result += map[static_cast<unsigned char>(ch)];
             continue;
         }
         
