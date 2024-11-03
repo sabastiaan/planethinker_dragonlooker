@@ -5,6 +5,7 @@ This a internship test for a company renowened for its IDEs.
 
 ```
 mkdir build
+cd build
 cmake ..
 make 
 ```
